@@ -1,40 +1,42 @@
-from flask import Flask, request, jsonify, send_from_directory
-from yt_dlp import YoutubeDL
-import os, uuid
-port = int(os.environ.get("PORT", 5000))
-app.run(host="0.0.0.0", port=port)
+from flask import Flask, request, send_file, jsonify
+import yt_dlp
+import os
+import uuid
 
 app = Flask(__name__)
-DOWNLOAD_DIR = "./downloads"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-@app.route("/download", methods=["POST"])
+@app.route('/')
+def home():
+    return 'yt-dlp server is running!'
+
+@app.route('/download', methods=['POST'])
 def download():
     data = request.get_json()
-    url = data.get("url")
-    if not url:
-        return jsonify({"error": "No URL"}), 400
+    if not data or 'url' not in data:
+        return jsonify({'error': 'Missing YouTube URL'}), 400
 
-    filename = str(uuid.uuid4())
-    output = f"{DOWNLOAD_DIR}/{filename}.%(ext)s"
+    video_url = data['url']
+    temp_id = str(uuid.uuid4())
+    output_path = f'/tmp/{temp_id}.mp4'
 
-    opts = {
-        "outtmpl": output,
-        "format": "bestvideo+bestaudio/best",
-        "merge_output_format": "mp4",
-        "noplaylist": True,
-        "quiet": True
+    ydl_opts = {
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4',
+        'outtmpl': output_path,
+        'merge_output_format': 'mp4',
+        'quiet': True
     }
 
     try:
-        with YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-        ext = "mp4"
-        file_url = f"{request.host_url}downloads/{filename}.{ext}"
-        return jsonify({"title": info.get("title"), "file_url": file_url})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
 
-@app.route("/downloads/<name>")
-def serve(name):
-    return send_from_directory(DOWNLOAD_DIR, name)
+        return send_file(output_path, mimetype='video/mp4', as_attachment=True, download_name='video.mp4')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if os.path.exists(output_path):
+            os.remove(output_path)
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
