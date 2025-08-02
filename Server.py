@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify, send_from_directory
 from yt_dlp import YoutubeDL
 import os, uuid
+port = int(os.environ.get("PORT", 5000))
+app.run(host="0.0.0.0", port=port)
 
 app = Flask(__name__)
 DOWNLOAD_DIR = "./downloads"
